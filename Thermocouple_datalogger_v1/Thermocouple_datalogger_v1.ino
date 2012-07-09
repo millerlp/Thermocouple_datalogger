@@ -1,4 +1,5 @@
 /* Thermocouple_datalogger Luke Miller July 2012
+   Updated for Arduino 1.0.1 environment
   This program is released under the MIT License
   Copyright (c) 2010 Luke Miller
   The software is provided "as is", and it may not actually do anything
@@ -21,9 +22,9 @@
   You must have the real time clock initialized (by running the sketches outlined in the
   LadyAda tutorial) before attempting to load and run this sketch on the Arduino. 
 */
-#include <SdFat.h>  //library for the SD card shield, written by William G 'fat16lib'
+#include <SD.h> // SD card library 
 #include <Wire.h> 
-#include "RTClib.h" //for the real time clock on the SD card shield, from JeeLabs
+#include "RTClib.h" //
 #include <LiquidCrystal.h> //for the LCD display
 
 volatile long lastSave = 0; // time value of last save. Relies on realtime clock
@@ -72,6 +73,8 @@ Sd2Card card;
 SdVolume volume;
 SdFile root;
 SdFile file;
+File logfile; // The object that represents our datafile
+const int chipSelect = 10; // chip select pin for SD card, 10 for regular Arduino, 53 for Mega
 
 /*Below we set up the data storage arrays for the temperature readings. This sketch uses a 
 smoothing routine to avoid aliasing and to keep the temperature readings from fluctuating 
@@ -149,22 +152,26 @@ void setup(void)
   
   //************************************************************************** 
  // initialize the SD card
-  if (!card.init()) error("card.init, Reformat card");
-  
-  // initialize a FAT volume
-  if (!volume.init(card)) error("volume.init");
-  
-  // open root directory
-  if (!root.openRoot(volume)) error("openRoot");
+  if (!SD.begin(chipSelect)) {
+    error("Card failed, or not present");
+  }
+//  if (!card.init()) error("card.init, Reformat card");
+  lcd.println("card initialized");
   
   // create a new file
   char name[] = "LOGGER00.CSV"; //File names will follow this format, and increment automatically
   for (uint8_t i = 0; i < 100; i++) {
     name[6] = i/10 + '0';
     name[7] = i%10 + '0';
-    if (file.open(root, name, O_CREAT | O_EXCL | O_WRITE)) break;
+    if (! SD.exists(name)) {
+     logfile = SD.open(name, FILE_WRITE);
+     break; 
+    }
   }
-  if (!file.isOpen()) error ("file.create");
+  if (! logfile) {
+    error("couldn't create file");
+  }
+  
   lcd.clear();
   lcd.home();
   lcd.print("Logging to: ");
@@ -173,11 +180,8 @@ void setup(void)
   delay(1000);
   lcd.clear();
 
-  // write header
-  file.writeError = 0;
-
   if (!RTC.begin()) {
-    file.println("RTC failed");
+    logfile.println("RTC failed");
     lcd.clear();
     lcd.home();
     lcd.print("RTC failed");
@@ -186,11 +190,7 @@ void setup(void)
   }    
   
   //Write the output file header row to our file so that we can identify the data later
-  file.println("unixtime,datetime,Ch1 (C),Ch2 (C), Ch3 (C), Ch4 (C), Ch5 (C), Ch6 (C), Ch7 (C), Ch8 (C)");
-  
-  if (file.writeError || !file.sync()) {
-    error("write header");
-  }
+  logfile.println("unixtime,datetime,Ch1,Ch2, Ch3, Ch4, Ch5, Ch6, Ch7, Ch8");
   
   //***************************************************************************
   // Have user select save-data interval and lcd timeout 
@@ -313,36 +313,36 @@ void loop(void)
   //Write data to SD card if it's time to save
   now = RTC.now(); //get current time from Real Time Clock
  
-  file.writeError = 0;
+//  file.writeError = 0;
   
   if (now.unixtime() >= (lastSave + saveInterval)) //if new unix time is greater than
                                                    //lastSave + saveInterval
   {
     noInterrupts(); //shut off interrupts during SD card writing
     lastSave = now.unixtime(); //update lastSave value
-    file.print(now.unixtime());
-    file.print(",");  
-    file.print(now.month(), DEC);
-    file.print("/");
-    file.print(now.day(), DEC);
-    file.print("/");
-    file.print(now.year(), DEC);
-    file.print(" ");
-    file.print(now.hour(), DEC);
-    file.print(":");
-    file.print(now.minute(), DEC);
-    file.print(":");
-    file.print(now.second(), DEC);  
-    file.print(",");
+    logfile.print(now.unixtime());
+    logfile.print(",");  
+    logfile.print(now.month(), DEC);
+    logfile.print("/");
+    logfile.print(now.day(), DEC);
+    logfile.print("/");
+    logfile.print(now.year(), DEC);
+    logfile.print(" ");
+    logfile.print(now.hour(), DEC);
+    logfile.print(":");
+    logfile.print(now.minute(), DEC);
+    logfile.print(":");
+    logfile.print(now.second(), DEC);  
+    logfile.print(",");
     //now save temperatures
     for (int i=0; i<=6;i++) { //write the first 7 temperatures in a loop
-    file.print(averages[i]);
-    file.print(","); 
+    logfile.print(averages[i]);
+    logfile.print(","); 
     }
-    file.println(averages[7]); //write the 8th temperature and include a carriage return
+    logfile.println(averages[7]); //write the 8th temperature and include a carriage return
     
-    if (file.writeError) error("write data"); 
-    if(!file.sync()) error("sync"); //file sync command?
+//    if (file.writeError) error("write data"); 
+//    if(!file.sync()) error("sync"); //file sync command?
     
     interrupts(); //turn interrupts back on
     //print save notification to LCD
