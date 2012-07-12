@@ -24,7 +24,8 @@
 */
 #include <SD.h> // SD card library 
 #include <Wire.h> 
-#include "RTClib.h" //
+#include <SPI.h>
+#include "RTClib.h"
 #include <LiquidCrystal.h> //for the LCD display
 
 volatile long lastSave = 0; // time value of last save. Relies on realtime clock
@@ -118,6 +119,7 @@ void setup(void)
   pinMode(muxA1, OUTPUT); //multiplexer control pins
   pinMode(muxA0, OUTPUT); //multiplexer control pins
   pinMode(button1, INPUT); // button for selecting options during setup and turning on display
+  digitalWrite(button1, HIGH); // set internal pullup resistor
   pinMode(lcdLight, OUTPUT); //pin to toggle power to LCD (this is connected to the PN2222A transistor)
   digitalWrite(lcdLight, HIGH); //turn on LCD intially
   lcd.begin(20,4);  //(columns,rows) Initialize LCD
@@ -190,8 +192,8 @@ void setup(void)
   }    
   
   //Write the output file header row to our file so that we can identify the data later
-  logfile.println("unixtime,datetime,Ch1,Ch2, Ch3, Ch4, Ch5, Ch6, Ch7, Ch8");
-  
+  logfile.println("unixtime,datetime,Ch1,Ch2,Ch3,Ch4,Ch5,Ch6,Ch7,Ch8");
+  logfile.flush();
   //***************************************************************************
   // Have user select save-data interval and lcd timeout 
   // These two lines call sub-routines that are down at the bottom of this file
@@ -340,9 +342,8 @@ void loop(void)
     logfile.print(","); 
     }
     logfile.println(averages[7]); //write the 8th temperature and include a carriage return
-    
-//    if (file.writeError) error("write data"); 
-//    if(!file.sync()) error("sync"); //file sync command?
+    logfile.flush();
+//    logfile.close();
     
     interrupts(); //turn interrupts back on
     //print save notification to LCD
