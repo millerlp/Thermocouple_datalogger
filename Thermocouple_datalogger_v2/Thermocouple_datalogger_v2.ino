@@ -26,6 +26,7 @@
 #include <Wire.h> 
 #include <SPI.h>
 #include "RTClib.h"
+#include <RTC_DS1307.h>
 #include <LiquidCrystal.h> //for the LCD display
 
 volatile unsigned long lastSave = 0; // time value of last save. Relies on realtime clock
