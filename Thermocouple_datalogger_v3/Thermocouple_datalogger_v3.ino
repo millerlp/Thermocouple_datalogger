@@ -1,5 +1,5 @@
-/* Thermocouple_datalogger_v2 Luke Miller July 2012
-   Updated for Arduino 1.0.1 environment
+/* Thermocouple_datalogger_v3 Luke Miller October 2014
+   Updated for Arduino 1.0.5-r2 environment
   This program is released under the MIT License
   Copyright (c) 2010 Luke Miller
   The software is provided "as is", and it may not actually do anything
@@ -20,7 +20,15 @@
   The tutorial for assembling and setting up the SD card and real time clock are here:
   http://www.ladyada.net/make/logshield/
   You must have the real time clock initialized (by running the sketches outlined in the
-  LadyAda tutorial) before attempting to load and run this sketch on the Arduino. 
+  LadyAda tutorial) before attempting to load and run this sketch on the Arduino.
+	
+ The SdFat library used in this version can be obtained from 
+ https://github.com/greiman/SdFat Put the contents of the SdFat directory into your
+ Arduino/libraries directory so that this sketch can find it. 
+ 
+ The RTClib used here comes from https://github.com/mizraith/RTClib Put the contents 
+ of that repository into a folder called RTClib inside your Arduino/libraries directory.
+  
 */
 #include <SdFat.h> // SD card library, not the stock Arduino SD library
 #include <Wire.h> 
