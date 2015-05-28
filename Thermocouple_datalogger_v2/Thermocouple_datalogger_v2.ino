@@ -286,7 +286,7 @@ void loop(void)
     total[channel] = total[channel] + tempInArray[index][channel];
   }
     
-  index = index++; //increment index value
+  index++; //increment index value
   if (index >= numReadings) { //wrap around if we've exceeding the value of numReadings
     index = 0;
   }

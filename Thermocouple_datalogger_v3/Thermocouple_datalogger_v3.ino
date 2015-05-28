@@ -1,5 +1,5 @@
 /* Thermocouple_datalogger_v3 Luke Miller October 2014
-   Updated for Arduino 1.0.5-r2 environment
+   Updated for Arduino 1.6.4 environment May 2015
   This program is released under the MIT License
   Copyright (c) 2010 Luke Miller
   The software is provided "as is", and it may not actually do anything
@@ -16,25 +16,30 @@
   most biological systems.
 
   The SD card and real time clock shield used here are sourced from Adafruit Industries
-  http://www.adafruit.com/index.php?main_page=product_info&cPath=17_21&products_id=243
+  https://www.adafruit.com/product/1141
   The tutorial for assembling and setting up the SD card and real time clock are here:
-  http://www.ladyada.net/make/logshield/
+  https://learn.adafruit.com/adafruit-data-logger-shield
   You must have the real time clock initialized (by running the sketches outlined in the
-  LadyAda tutorial) before attempting to load and run this sketch on the Arduino.
+  LadyAda tutorial or using the settime.ino or settime_exact.ino sketches in the RTClib
+  library examples) before attempting to load and run this sketch on the Arduino. This
+  shield and the code below should work with an Arduino Uno or similar models, but would
+  require modification to work with an Arduino Due or other ARM-based boards that move
+  the SPI and I2C pins around. 
 	
  The SdFat library used in this version can be obtained from 
  https://github.com/greiman/SdFat Put the contents of the SdFat directory into your
- Arduino/libraries directory so that this sketch can find it. 
+ Arduino/libraries/ directory so that this sketch can find it. 
  
- The RTClib used here comes from https://github.com/mizraith/RTClib Put the contents 
- of that repository into a folder called RTClib inside your Arduino/libraries directory.
+ The RTClib used here comes from https://github.com/millerlp/RTClib and is just a 
+	fork of  https://github.com/MrAlvin/RTClib Put the contents 
+ of that repository into a folder called RTClib inside your Arduino/libraries/ directory.
   
 */
-#include <SdFat.h> // SD card library, not the stock Arduino SD library
+
 #include <Wire.h> 
 #include <SPI.h>
-#include "RTClib.h"
-#include <RTC_DS1307.h>
+#include "RTClib.h" // From https://github.com/millerlp/RTClib
+#include "SdFat.h" // Not the stock Arduino SD library, use https://github.com/greiman/SdFat
 #include <LiquidCrystal.h> //for the LCD display
 
 volatile unsigned long lastSave = 0; // time value of last save. Relies on realtime clock
@@ -87,7 +92,10 @@ DateTime now; //define a time object "now", from the RTClib library
 SdFat sd;
 SdFile logfile;  // for sd card, this is the file object to be written to
 const byte chipSelect = 10; // chip select pin for SD card, 10 for regular Arduino, 53 for Mega
-char filename[] = "LOGGER00.CSV";
+// Define a character array to hold the filename. Newer versions of the
+// SdFat library support long file names. 
+char filename[] = "YYYYMMDD_HHMM_XX.CSV";
+
 
 /*Below we set up the data storage arrays for the temperature readings. This sketch uses a 
 smoothing routine to avoid aliasing and to keep the temperature readings from fluctuating 
@@ -169,7 +177,8 @@ void setup(void)
   // Try SPI_FULL_SPEED, or SPI_HALF_SPEED if full speed produces
   // errors on a breadboard setup. 
 	if (!sd.begin(chipSelect, SPI_FULL_SPEED)) {
-		error("Card failed, or not present"); // Show error if failed
+		lcd.setCursor(0,3);
+		lcd.println(F("Card failed")); // Show error if failed
 	}
 	// Otherwise if initialization works, show user on LCD
 	lcd.setCursor(0,3);
@@ -289,7 +298,7 @@ void loop(void)
     total[channel] = total[channel] + tempInArray[index][channel];
   }
     
-  index = index++; //increment index value
+  index++; //increment index value
   if (index >= numReadings) { //wrap around if we've exceeding the value of numReadings
     index = 0;
   }
@@ -328,7 +337,8 @@ void loop(void)
 	// Reopen logfile. If opening fails, notify the user
 	if (!logfile.isOpen()) {
 		if (!logfile.open(filename, O_RDWR | O_CREAT | O_AT_END)) {
-			error("Could not reopen file");
+			lcd.setCursor(0,3);
+			lcd.println(F("File reopen failed"));
 			// bitSet(PINB, 0); // toggle ERRLED to show error
 		}
 	}
@@ -595,50 +605,75 @@ void lcdPrintDouble( double val, byte precision){
 
 //------------------------------------------------------------------------------
 // initFileName - a function to create a filename for the SD card based
-// on the 2-digit year, month, and day. The character array 'filename'
+// on the 4-digit year, month, day, hour, and minute. The character array 'filename'
 // was defined as a global variable at the top of the sketch
 void initFileName(DateTime time1) {
-	// Insert 2-digit year, month, and date into filename[] array
-	// decade (2014-2000) = 14/10 = 1
-	filename[0] = ((time1.year() - 2000) / 10) + '0'; 
-	// year  (2014-2000) = 14%10 = 4
-	filename[1] = ((time1.year() - 2000) % 10) + '0'; 
+	char buf[5];
+	// integer to ascii function itoa(), supplied with numeric year value,
+	// a buffer to hold output, and the base for the conversion (base 10 here)
+	itoa(time1.year(), buf, 10);
+	// copy the ascii year into the filename array
+	for (byte i = 0; i <= 4; i++){
+		filename[i] = buf[i];
+	}
+	// Insert the month value
 	if (time1.month() < 10) {
-		filename[2] = '0';
-		filename[3] = time1.month() + '0';
-	} else if (time1.month() >= 10) {
-		filename[2] = (time1.month() / 10) + '0';
-		filename[3] = (time1.month() % 10) + '0';
-	}
-	if (time1.day() < 10) {
 		filename[4] = '0';
-		filename[5] = time1.day() + '0';
-	} else if (time1.day() >= 10) {
-		filename[4] = (time1.day() / 10) + '0';
-		filename[5] = (time1.day() % 10) + '0';
+		filename[5] = time1.month() + '0';
+	} else if (time1.month() >= 10) {
+		filename[4] = (time1.month() / 10) + '0';
+		filename[5] = (time1.month() % 10) + '0';
 	}
+	// Insert the day value
+	if (time1.day() < 10) {
+		filename[6] = '0';
+		filename[7] = time1.day() + '0';
+	} else if (time1.day() >= 10) {
+		filename[6] = (time1.day() / 10) + '0';
+		filename[7] = (time1.day() % 10) + '0';
+	}
+	// Insert an underscore between date and time
+	filename[8] = '_';
+	// Insert the hour
+	if (time1.hour() < 10) {
+		filename[9] = '0';
+		filename[10] = time1.hour() + '0';
+	} else if (time1.hour() >= 10) {
+		filename[9] = (time1.hour() / 10) + '0';
+		filename[10] = (time1.hour() % 10) + '0';
+	}
+	// Insert minutes
+		if (time1.minute() < 10) {
+		filename[11] = '0';
+		filename[12] = time1.minute() + '0';
+	} else if (time1.minute() >= 10) {
+		filename[11] = (time1.minute() / 10) + '0';
+		filename[12] = (time1.minute() % 10) + '0';
+	}
+	// Insert another underscore after time
+	filename[13] = '_';
+		
 	// Next change the counter on the end of the filename
-	// (digits 6+7) to increment count for files generated on
+	// (digits 14+15) to increment count for files generated on
 	// the same day. This shouldn't come into play
 	// during a normal data run, but can be useful when 
 	// troubleshooting.
 	for (uint8_t i = 0; i < 100; i++) {
-		filename[6] = i / 10 + '0';
-		filename[7] = i % 10 + '0';
+		filename[14] = i / 10 + '0';
+		filename[15] = i % 10 + '0';
+		filename[16] = '.';
+		filename[17] = 'c';
+		filename[18] = 's';
+		filename[19] = 'v';
+				
 		if (!sd.exists(filename)) {
 			// when sd.exists() returns false, this block
 			// of code will be executed to open the file
 			if (!logfile.open(filename, O_RDWR | O_CREAT | O_AT_END)) {
 				// If there is an error opening the file, notify the
 				// user. Otherwise, the file is open and ready for writing
-				error("Opening file for write failed");
-// #if ECHO_TO_SERIAL
-				// sd.errorHalt("opening file for write failed");
-// #endif
-				// Turn both inidicator LEDs on to indicate a failure
-				// to create the log file
-				// bitSet(PINB, 0); // Toggle error led on PINB0 (D8 Arduino)
-				// bitSet(PINB, 1); // Toggle indicator led on PINB1 (D9 Arduino)
+				lcd.setCursor(0,3);
+				lcd.println(F("File open failed"));
 			}
 			break; // Break out of the for loop when the
 			// statement if(!logfile.exists())
@@ -650,10 +685,7 @@ void initFileName(DateTime time1) {
 	logfile.println(F("unixtime,datetime,Ch1,Ch2,Ch3,Ch4,Ch5,Ch6,Ch7,Ch8"));
 
 	delay(350);
-	// write a header line to the SD file
-	// logfile.println(F("POSIXt,DateTime,frac.seconds,Pressure.mbar,TempC"));
-	// Sync and close the logfile for now.
-	logfile.sync();
+
 	// Update the file's creation date, modify date, and access date.
 	logfile.timestamp(T_CREATE, time1.year(), time1.month(), time1.day(), 
 			time1.hour(), time1.minute(), time1.second());
